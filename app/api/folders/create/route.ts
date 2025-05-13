@@ -1,9 +1,9 @@
+import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { files } from "@/lib/db/schema";
-import { auth } from "@clerk/nextjs/server";
-import { and, eq } from "drizzle-orm";
-import { NextRequest, NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
+import { eq, and } from "drizzle-orm";
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,17 +15,19 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { name, userId: bodyUserId, parentId = null } = body;
 
+    // Verify the user is creating a folder in their own account
     if (bodyUserId !== userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     if (!name || typeof name !== "string" || name.trim() === "") {
       return NextResponse.json(
-        { error: "Folder name is required." },
+        { error: "Folder name is required" },
         { status: 400 }
       );
     }
 
+    // Check if parent folder exists if parentId is provided
     if (parentId) {
       const [parentFolder] = await db
         .select()
@@ -41,15 +43,16 @@ export async function POST(request: NextRequest) {
       if (!parentFolder) {
         return NextResponse.json(
           { error: "Parent folder not found" },
-          { status: 401 }
+          { status: 404 }
         );
       }
     }
 
+    // Create folder record in database
     const folderData = {
       id: uuidv4(),
-      name,
-      path: `/folders/${userId}/${uuidv4}`,
+      name: name.trim(),
+      path: `/folders/${userId}/${uuidv4()}`,
       size: 0,
       type: "folder",
       fileUrl: "",
@@ -65,12 +68,13 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: "Folder Create Successfully",
+      message: "Folder created successfully",
       folder: newFolder,
     });
   } catch (error) {
+    console.error("Error creating folder:", error);
     return NextResponse.json(
-      { error: "Failed to creating file" },
+      { error: "Failed to create folder" },
       { status: 500 }
     );
   }
